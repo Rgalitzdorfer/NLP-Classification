@@ -1,6 +1,12 @@
 #Import Libraries
 import pandas as pd
 import os
+from datetime import timedelta
+
+# Function to convert timestamps to seconds
+def convert_to_seconds(timestamp):
+    time_parts = list(map(int, timestamp.split(':')))
+    return timedelta(minutes=time_parts[0], seconds=time_parts[1]).total_seconds()
 
 # Function to incorporate step 0 times and recalculate cumulative times
 def adjust_step_0_times(data, additional_log):
@@ -10,6 +16,8 @@ def adjust_step_0_times(data, additional_log):
     
     for problem in problems:
         problem_data = data[data['ProblemID'] == problem]
+        if problem_data.empty:
+            continue
         step_0_time = additional_log[additional_log['Problem'] == problem]['TrueTimeSpentOnStep'].values[0]
         
         # Add a step 0 entry with only the time
@@ -39,35 +47,28 @@ def adjust_step_0_times(data, additional_log):
     
     return adjusted_df
 
-# Function to label audio data with corresponding problem and problem step
+# Function to label audio data with corresponding problem and problem step using nearest neighbor approach
 def label_audio_data(audio_data, adjusted_data):
-    labeled_audio_data = []
-
     for i, audio_row in audio_data.iterrows():
         audio_time = audio_row['Timestamp_seconds']
-        for j, step_row in adjusted_data.iterrows():
-            step_start_time = step_row['Timestamp_seconds']
-            step_end_time = step_row['Cumulative_Updated_True_Time']
-            if step_start_time <= audio_time <= step_end_time:
-                labeled_audio_row = audio_row.copy()
-                labeled_audio_row['ProblemID'] = step_row['ProblemID']
-                labeled_audio_row['ProblemStepID'] = step_row['ProblemStepID']
-                labeled_audio_data.append(labeled_audio_row)
-                break
+        closest_step_idx = (adjusted_data['Cumulative_Updated_True_Time'] - audio_time).abs().idxmin()
+        
+        if pd.isna(adjusted_data.at[closest_step_idx, 'Text']):
+            adjusted_data.at[closest_step_idx, 'Text'] = ''
+        
+        adjusted_data.at[closest_step_idx, 'Text'] += ' ' + str(audio_row['Text'])
+        adjusted_data.at[closest_step_idx, 'Timestamp_seconds'] = audio_time
 
-    labeled_audio_df = pd.DataFrame(labeled_audio_data)
-    return labeled_audio_df
+    return adjusted_data
 
 # Paths
 additional_log_path = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 2/Additional Log Data.csv'
 merged_data_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 2/Merged Data'
 adjusted_data_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 3/Final Merged Data'
 audio_data_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 2/Participants'
-labeled_audio_data_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 3/Final Merged Data/Labeled Audio Data'
 
 # Ensure the directories exist
 os.makedirs(adjusted_data_directory, exist_ok=True)
-os.makedirs(labeled_audio_data_directory, exist_ok=True)
 
 # Load the additional log data
 additional_log = pd.read_csv(additional_log_path)
@@ -80,6 +81,9 @@ for file_path in merged_data_files:
     try:
         # Load the merged data
         merged_data = pd.read_csv(file_path)
+        if merged_data.empty:
+            print(f"File {file_path} is empty. Skipping.")
+            continue
         print(f"Processing file: {file_path}")
     except Exception as e:
         print(f"Error reading file {file_path}: {e}")
@@ -93,26 +97,26 @@ for file_path in merged_data_files:
         continue
 
     try:
-        # Save the adjusted data back to CSV
-        file_name = os.path.basename(file_path)
-        output_path = os.path.join(adjusted_data_directory, file_name.replace('Merged_Data', 'Final_Merged_Data'))
-        adjusted_data.to_csv(output_path, index=False)
-        print(f"Adjusted data saved to {output_path}")
-    except Exception as e:
-        print(f"Error saving file {output_path}: {e}")
-
-    try:
         # Load the corresponding audio data
+        file_name = os.path.basename(file_path)
         participant_id = file_name.split('_')[2].split('.')[0]
         audio_data_path = os.path.join(audio_data_directory, f'Participant_{participant_id}_Data.csv')
         audio_data = pd.read_csv(audio_data_path)
 
-        # Label the audio data
-        labeled_audio_data = label_audio_data(audio_data, adjusted_data)
+        # Ensure the Timestamp_seconds column exists
+        if 'Timestamp_seconds' not in audio_data.columns:
+            audio_data['Timestamp_seconds'] = audio_data['Timestamp'].apply(convert_to_seconds)
 
-        # Save the labeled audio data to a new CSV file
-        labeled_audio_output_path = os.path.join(labeled_audio_data_directory, f'Labeled_Audio_Data_{participant_id}.csv')
-        labeled_audio_data.to_csv(labeled_audio_output_path, index=False)
-        print(f"Labeled audio data saved to {labeled_audio_output_path}")
+        # Initialize the Text column as an empty string in adjusted data
+        if 'Text' not in adjusted_data.columns:
+            adjusted_data['Text'] = ''
+
+        # Label the audio data
+        final_merged_data = label_audio_data(audio_data, adjusted_data)
+
+        # Save the merged final data back to CSV
+        output_path = os.path.join(adjusted_data_directory, file_name.replace('Merged_Data', 'Final_Merged_Data'))
+        final_merged_data.to_csv(output_path, index=False)
+        print(f"Final merged data saved to {output_path}")
     except Exception as e:
         print(f"Error processing audio data for participant {participant_id}: {e}")
