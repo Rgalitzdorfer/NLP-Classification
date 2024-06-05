@@ -101,15 +101,17 @@ for participant_id in participants:
     print(additional_log[['Problem', 'TrueTimeSpentOnStep']].head()) #Print first few rows of additional log data
     #Merge logs and include all problems
     merged_logs = pd.merge(participant_log, additional_log[['Participant_ID', 'Problem', 'TrueTimeSpentOnStep']], 
-                           on=['Participant_ID', 'Problem'], how='outer', suffixes=('', '_additional')) #Merge log data
-    merged_logs.rename(columns={'TrueTimeSpentOnStep_additional': 'Updated_True_Time'}, inplace=True) #Rename column
-    #Fill missing values
-    if 'TrueTimeSpentOnStep' in merged_logs.columns: #Check if column exists
-        merged_logs['Updated_True_Time'] = merged_logs['Updated_True_Time'].fillna(merged_logs['TrueTimeSpentOnStep']) #Fill missing values
-    #Add missing problems explicitly
-    for problem in additional_log['Problem'].unique(): #Iterate over unique problems
-        if problem not in merged_logs['Problem'].unique(): #Check if problem is missing
-            missing_problem_row = additional_log[additional_log['Problem'] == problem].iloc[0] #Get missing problem row
+                           on=['Participant_ID', 'Problem'], how='outer', suffixes=('', '_additional'))
+    merged_logs.rename(columns={'TrueTimeSpentOnStep_additional': 'Updated_True_Time'}, inplace=True)
+
+    # Use 'TimeSpent' column for the updated time
+    if 'TimeSpent' in merged_logs.columns:
+        merged_logs['Updated_True_Time'] = merged_logs['TimeSpent']
+
+    # Add missing problems explicitly
+    for problem in additional_log['Problem'].unique():
+        if problem not in merged_logs['Problem'].unique():
+            missing_problem_row = additional_log[additional_log['Problem'] == problem].iloc[0]
             new_row = {
                 'Participant_ID': missing_problem_row['Participant_ID'],
                 'Problem': missing_problem_row['Problem'],
@@ -120,26 +122,52 @@ for participant_id in participants:
                 'Updated_True_Time': missing_problem_row['TrueTimeSpentOnStep'],
                 'TimeSpent': missing_problem_row['TrueTimeSpentOnStep']
             }
-            merged_logs = merged_logs.append(new_row, ignore_index=True) #Append missing problem row
-    merged_logs = merged_logs.sort_values(by=['Problem', 'ProblemStep']).reset_index(drop=True) #Sort merged logs
-    participant_data = participant_data.sort_values(by='Timestamp_seconds').reset_index(drop=True) #Sort participant data
+            merged_logs = merged_logs.append(new_row, ignore_index=True)
+    
+    merged_logs = merged_logs.sort_values(by=['Problem', 'ProblemStep']).reset_index(drop=True)
+    participant_data = participant_data.sort_values(by='Timestamp_seconds').reset_index(drop=True)
     merged_data = []
-    for i, row in participant_data.iterrows(): #Iterate over participant data
+    
+    cumulative_time = 0
+    log_index = 0
+    for i, row in participant_data.iterrows():
         merged_entry = row.to_dict()
-        log_row = merged_logs.iloc[i % len(merged_logs)] #Get corresponding log row
-        merged_entry['ProblemID'] = log_row['Problem']
-        merged_entry['ProblemStepID'] = log_row['ProblemStep']
-        merged_entry['Rule_order'] = log_row['Rule_order']
-        merged_entry['State'] = log_row['State']
-        merged_entry['Rule_type'] = log_row['Rule_type']
-        merged_entry['Updated_True_Time'] = log_row['Updated_True_Time']
-        merged_data.append(merged_entry) #Append merged entry
-    #Create DataFrame
-    merged_df = pd.DataFrame(merged_data)  
-    merged_df['Cumulative_Updated_True_Time'] = merged_df['Updated_True_Time'].cumsum() #Calculate cumulative time
+        if log_index < len(merged_logs):
+            log_row = merged_logs.iloc[log_index]
+            merged_entry['ProblemID'] = log_row['Problem']
+            merged_entry['ProblemStepID'] = log_row['ProblemStep']
+            merged_entry['Rule_order'] = log_row['Rule_order']
+            merged_entry['State'] = log_row['State']
+            merged_entry['Rule_type'] = log_row['Rule_type']
+            merged_entry['Updated_True_Time'] = log_row['Updated_True_Time']
+            cumulative_time += log_row['Updated_True_Time']
+            merged_entry['Cumulative_Updated_True_Time'] = cumulative_time
+            log_index += 1
+        merged_data.append(merged_entry)
+    
+    # Append any remaining log rows that were not matched with participant data
+    for j in range(log_index, len(merged_logs)):
+        log_row = merged_logs.iloc[j]
+        merged_entry = {
+            'Participant': current_participant,
+            'Text': '',
+            'Timestamp_seconds': None,
+            'ProblemID': log_row['Problem'],
+            'ProblemStepID': log_row['ProblemStep'],
+            'Rule_order': log_row['Rule_order'],
+            'State': log_row['State'],
+            'Rule_type': log_row['Rule_type'],
+            'Updated_True_Time': log_row['Updated_True_Time'],
+            'Cumulative_Updated_True_Time': cumulative_time + log_row['Updated_True_Time']
+        }
+        cumulative_time += log_row['Updated_True_Time']
+        merged_data.append(merged_entry)
+    
+    merged_df = pd.DataFrame(merged_data)
     time_columns_to_keep = ['Timestamp_seconds', 'Updated_True_Time', 'Cumulative_Updated_True_Time', 'ProblemID', 'ProblemStepID', 'Rule_order', 'State', 'Rule_type']
     columns_to_drop = [col for col in merged_df.columns if 'Time' in col and col not in time_columns_to_keep]
-    merged_df.drop(columns=columns_to_drop, inplace=True) #Drop unnecessary columns
-    merged_file_path = os.path.join(merged_files_base_path, f'Merged_Data_{participant_id}.csv') #Define file path for saving
-    merged_df.to_csv(merged_file_path, index=False)  
-    print(f"Data for Participant {participant_id} Merged & Saved Successfully.")  
+    merged_df.drop(columns=columns_to_drop, inplace=True)
+    
+    merged_file_path = os.path.join(merged_files_base_path, f'Merged_Data_{participant_id}.csv')
+    merged_df.to_csv(merged_file_path, index=False)
+    print(f"Data for Participant {participant_id} Merged & Saved Successfully.")
