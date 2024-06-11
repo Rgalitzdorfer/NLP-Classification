@@ -1,4 +1,5 @@
 #Import Libraries
+#Import Libraries
 import os
 import pandas as pd
 
@@ -72,6 +73,7 @@ def process_file(file_path):
     
     return aggregated_df
 
+
 # Process each CSV file in the input folder
 for filename in os.listdir(input_folder):
     if filename.endswith('.csv'):
@@ -79,11 +81,17 @@ for filename in os.listdir(input_folder):
         try:
             transformed_df = process_file(file_path)
             
-            # Save the transformed DataFrame
-            output_file_path = os.path.join(output_folder, filename)
+            participant_id = transformed_df['Participant'].iloc[0]
+            participant_number = ''.join(filter(str.isdigit, participant_id))  # Extract digits from participant ID
+            output_filename = f"Complete_Data_{participant_number}.csv"
+            output_file_path = os.path.join(output_folder, output_filename)
             transformed_df.to_csv(output_file_path, index=False)
-            print(f'Transformed data saved to {output_file_path}')
+            print(f'\nTransformed data saved to {output_file_path}')
         except KeyError as e:
             print(f"Skipping {filename} due to missing column: {e}")
+        except ValueError as e:
+            print(f"Skipping {filename} due to ValueError: {e}")
+        except Exception as e:
+            print(f"Skipping {filename} due to unexpected error: {e}")
 
 print("Data transformation complete.")
