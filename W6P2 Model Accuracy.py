@@ -1,198 +1,136 @@
 #Import Libraries
 import os #Operating System
-import pandas as pd  # For data manipulation and analysis
-from sklearn.preprocessing import StandardScaler, OneHotEncoder  # For feature scaling and encoding categorical variables
-from sklearn.compose import ColumnTransformer  # For combining different preprocessing pipelines
-from sklearn.pipeline import Pipeline  # For creating a machine learning pipeline
-from sklearn.model_selection import StratifiedKFold  # For cross-validation
-from sklearn.ensemble import RandomForestClassifier  # For random forest classification
-from sklearn.metrics import classification_report, accuracy_score, precision_score, f1_score, balanced_accuracy_score  # For evaluating the model
-from sklearn.model_selection import GridSearchCV  # For hyperparameter tuning
-import numpy as np  # For numerical operations
-import warnings  # For suppressing warnings
-from imblearn.over_sampling import BorderlineSMOTE  # For handling imbalanced datasets
-from imblearn.pipeline import Pipeline as ImbPipeline  # For creating an imbalanced learning pipeline
-from sklearn.feature_extraction.text import TfidfVectorizer  # For text feature extraction
+import pandas as pd #Data Manipulation
+from sklearn.preprocessing import StandardScaler, OneHotEncoder #Encoding Categorical Variables
+from sklearn.compose import ColumnTransformer #Preprocessing Pipeline
+from sklearn.pipeline import Pipeline #Machine Learning Pipeline
+from sklearn.model_selection import StratifiedKFold #Cross-Validation
+from sklearn.ensemble import RandomForestClassifier #Random Forest Classification
+from sklearn.metrics import classification_report, accuracy_score, precision_score, f1_score, balanced_accuracy_score #Evaluation Metrics
+from sklearn.model_selection import GridSearchCV #Hyperparameter Tuning
+import numpy as np #Arrays
+import warnings #Suppressing Warnings
+from imblearn.over_sampling import BorderlineSMOTE #Imbalanced Datasets
+from imblearn.pipeline import Pipeline as ImbPipeline #Imbalanced Learning Pipeline
+from sklearn.feature_extraction.text import TfidfVectorizer #Text Feature Extraction
 
-# Suppress specific warnings
-warnings.filterwarnings('ignore', category=UserWarning, message='The least populated class in y has only')# Suppress user warnings
+#Warnings
+warnings.filterwarnings('ignore', category=UserWarning, message='The least populated class in y has only')
 
-# File path
-file_path = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 5/All_Participants.csv' # Set file path
+#Directories
+file_path = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 6/All_Participants_Updated.csv' 
+output_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 6' 
+os.makedirs(output_directory, exist_ok=True) 
 
-# Ensure the output directory exists
-output_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 6' # Set output directory
-os.makedirs(output_directory, exist_ok=True) # Create output directory
+data = pd.read_csv(file_path) #Read CSV
+print("First few rows of the dataset:") #Error Detection
+print(data.head()) 
+print("\nMissing values in each column:") #Error Detection
+print(data.isnull().sum()) 
+data = data.dropna(subset=['State']) #Drop Rows with Missing Information
+data['Text'] = data['Text'].fillna('') #Fill Missing Text Values
+print("\nDataset information after cleaning:") 
+print(data.info()) #Statistics
 
-# Step 1: Data Exploration and Cleaning
-# Load the dataset
-data = pd.read_csv(file_path) # Load CSV file
+#Define Text
+text_feature_column = 'Text' 
+categorical_features = ['Rule_type', 'Rule_order'] #Categorical Features
+numerical_features = ['Updated_True_Time', 'Correct', 'First.Action', 'Attempt.Count', 'NormalizedFirstRT'] #Numerical Features
 
-# Display the first few rows of the dataset
-print("First few rows of the dataset:") # Print header message
-print(data.head()) # Display first few rows
-
-# Check for missing values
-print("\nMissing values in each column:") # Print missing values header
-print(data.isnull().sum()) # Display missing values count
-
-# Drop rows with missing 'State' values, as this is our target variable
-data = data.dropna(subset=['State']) # Drop rows with missing target
-
-# Fill missing values in 'Text' column with empty strings
-data['Text'] = data['Text'].fillna('') # Fill missing text values
-
-# Display the updated summary
-print("\nDataset information after cleaning:") # Print cleaning info header
-print(data.info()) # Display data info
-
-# Step 2: Feature Engineering
-# Assuming the actual text is in a column named 'Text'
-text_feature_column = 'Text' # Define text feature column
-
-# Create a column transformer for handling categorical and numerical features
-categorical_features = ['Rule_type', 'Rule_order'] # Define categorical features
-numerical_features = ['Updated_True_Time'] # Define numerical features
-
-# TF-IDF transformation for text features
-tfidf_vectorizer = TfidfVectorizer() # Initialize TF-IDF vectorizer
+#TF-IDF Vectorizer
+tfidf_vectorizer = TfidfVectorizer() 
 text_transformer = Pipeline(steps=[
-    ('tfidf', tfidf_vectorizer) # Create text transformer pipeline
+    ('tfidf', tfidf_vectorizer) 
 ])
 
-# Preprocessing pipeline for numerical and categorical features
+#Machine Learning
 preprocessor = ColumnTransformer(
     transformers=[
-        ('num', StandardScaler(), numerical_features), # Scale numerical features
-        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features), # Encode categorical features
-        ('txt', text_transformer, text_feature_column) # Transform text features
+        ('num', StandardScaler(), numerical_features), #Scale Numerical Features
+        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_features), #Encode Categorical Features
+        ('txt', text_transformer, text_feature_column) #Transform Text Features
     ],
-    remainder='drop' # Drop unused columns
+    remainder='drop' 
 )
-
-# Prepare the features and target variable
-X = data.drop(columns=['State']) # Define feature set
-y = data['State'] # Define target variable
-
-# Fit the TF-IDF vectorizer on the entire dataset to ensure consistency
-X_tfidf = tfidf_vectorizer.fit_transform(X[text_feature_column]) # Fit TF-IDF vectorizer
-
-# Initialize BorderlineSMOTE for more sophisticated oversampling
-borderline_smote = BorderlineSMOTE(random_state=42, k_neighbors=2) # Initialize BorderlineSMOTE
-
-# Create a balanced random forest classifier with custom class weight adjustment
-rf_classifier = RandomForestClassifier(random_state=42, class_weight='balanced_subsample') # Initialize random forest
-
-# Create a GridSearchCV object with StratifiedKFold
+X = data.drop(columns=['State']) #Feature Set
+y = data['State'] #Target Variable
+X_tfidf = tfidf_vectorizer.fit_transform(X[text_feature_column]) #Fit TF-IDF Vectorizer
+borderline_smote = BorderlineSMOTE(random_state=42, k_neighbors=2) #Initialize BorderlineSMOTE
+rf_classifier = RandomForestClassifier(random_state=42, class_weight='balanced_subsample') #Initialize Random Forest
+#Define Parameter Grid
 param_grid = {
-    'n_estimators': [100, 200, 300], # Define parameter grid
-    'max_depth': [None, 10, 20, 30], # Define parameter grid
-    'min_samples_split': [2, 5, 10] # Define parameter grid
+    'n_estimators': [100, 200, 300], 
+    'max_depth': [None, 10, 20, 30], 
+    'min_samples_split': [2, 5, 10] 
 }
-
-# Set up StratifiedKFold cross-validation
-cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42) # Initialize cross-validation
-grid_search = GridSearchCV(estimator=rf_classifier, param_grid=param_grid, cv=cv, n_jobs=-1, verbose=2) # Initialize grid search
-
-# Create an imbalanced pipeline
+cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42) #Initialize Cross-Validation
+grid_search = GridSearchCV(estimator=rf_classifier, param_grid=param_grid, cv=cv, n_jobs=-1, verbose=2) #Initialize Grid Search
 pipeline = ImbPipeline(steps=[
-    ('preprocessor', preprocessor), # Add preprocessor to pipeline
-    ('borderline_smote', borderline_smote), # Add BorderlineSMOTE to pipeline
-    ('classifier', grid_search) # Add classifier to pipeline
+    ('preprocessor', preprocessor), 
+    ('borderline_smote', borderline_smote), 
+    ('classifier', grid_search) 
 ])
-
-# Fit the grid search to the data
-print("\nStarting grid search...") # Print grid search start message
-pipeline.fit(X, y) # Fit pipeline
-
-# Get the best parameters
-best_params = pipeline.named_steps['classifier'].best_params_ # Get best parameters
-print(f"\nBest parameters: {best_params}") # Print best parameters
-
-# Train the model with the best parameters
-rf_classifier_optimized = RandomForestClassifier(**best_params, random_state=42, class_weight='balanced_subsample') # Initialize optimized random forest
-
-# Initialize StratifiedKFold for cross-validation
-skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42) # Initialize cross-validation
-
-# Store results of each fold
-all_predictions = [] # Initialize predictions list
-accuracy_scores = [] # Initialize accuracy scores list
-balanced_accuracy_scores = [] # Initialize balanced accuracy scores list
-precision_scores = [] # Initialize precision scores list
-f1_scores = [] # Initialize F1 scores list
-
-# Check which features contribute most to the predictions
-feature_importances = [] # Initialize feature importances list
+pipeline.fit(X, y) #Fit Pipeline
+best_params = pipeline.named_steps['classifier'].best_params_ #Get Best Parameters
+print(f"\nBest parameters: {best_params}") 
+rf_classifier_optimized = RandomForestClassifier(**best_params, random_state=42, class_weight='balanced_subsample') #Initialize Optimized Random Forest
+skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42) #Initialize Cross-Validation
+#Initialize
+all_predictions = [] 
+accuracy_scores = [] 
+balanced_accuracy_scores = [] 
+precision_scores = [] 
+f1_scores = [] 
+feature_importances = [] 
 
 for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
-    X_train, X_test = X.iloc[train_index], X.iloc[test_index] # Split data
-    y_train, y_test = y.iloc[train_index], y.iloc[test_index] # Split target
-    
-    # Preprocess and oversample
-    X_train_transformed = preprocessor.fit_transform(X_train) # Transform training data
-    X_test_transformed = preprocessor.transform(X_test) # Transform test data
-    X_train_resampled, y_train_resampled = borderline_smote.fit_resample(X_train_transformed, y_train) # Oversample training data
-    
-    rf_classifier_optimized.fit(X_train_resampled, y_train_resampled) # Fit model
-    y_pred = rf_classifier_optimized.predict(X_test_transformed) # Predict on test data
-    
-    # Save fold predictions
+    X_train, X_test = X.iloc[train_index], X.iloc[test_index] #Split Data
+    y_train, y_test = y.iloc[train_index], y.iloc[test_index] #Split Target
+    X_train_transformed = preprocessor.fit_transform(X_train) #Transform Training Data
+    X_test_transformed = preprocessor.transform(X_test) #Transform Test Data
+    X_train_resampled, y_train_resampled = borderline_smote.fit_resample(X_train_transformed, y_train) #Oversample Training Data
+    rf_classifier_optimized.fit(X_train_resampled, y_train_resampled) #Fit Model
+    y_pred = rf_classifier_optimized.predict(X_test_transformed) #Predict Test Data
+    #Create DataFrame
     fold_predictions_df = pd.DataFrame({
-        'Actual': y_test, # Actual values
-        'Predicted': y_pred # Predicted values
+        'Actual': y_test, #Actual Values
+        'Predicted': y_pred #Predicted Values
     })
-    
-    all_predictions.append(fold_predictions_df) # Append fold predictions
-    
-    # Compute evaluation metrics
-    acc = accuracy_score(y_test, y_pred) # Compute accuracy
-    bal_acc = balanced_accuracy_score(y_test, y_pred) # Compute balanced accuracy
-    prec = precision_score(y_test, y_pred, average='macro', zero_division=0) # Compute precision
-    f1 = f1_score(y_test, y_pred, average='macro', zero_division=0) # Compute F1 score
-    
-    accuracy_scores.append(acc) # Append accuracy
-    balanced_accuracy_scores.append(bal_acc) # Append balanced accuracy
-    precision_scores.append(prec) # Append precision
-    f1_scores.append(f1) # Append F1 score
-    
-    # Collect feature importances
-    feature_importances.append(rf_classifier_optimized.feature_importances_) # Append feature importances
-    
-    # Print evaluation metrics
-    print(f"\nFold {fold+1} evaluation:") # Print fold evaluation header
-    print(f"Accuracy: {acc}") # Print accuracy
-    print(f"Balanced Accuracy: {bal_acc}") # Print balanced accuracy
-    print(f"Precision: {prec}") # Print precision
-    print(f"F1 Score: {f1}") # Print F1 score
-    print(classification_report(y_test, y_pred, zero_division=0)) # Print classification report
+    all_predictions.append(fold_predictions_df) 
+    #Evaluation Metrics
+    acc = accuracy_score(y_test, y_pred) 
+    bal_acc = balanced_accuracy_score(y_test, y_pred) 
+    prec = precision_score(y_test, y_pred, average='macro', zero_division=0) 
+    f1 = f1_score(y_test, y_pred, average='macro', zero_division=0) 
+    #Append
+    accuracy_scores.append(acc) 
+    balanced_accuracy_scores.append(bal_acc) 
+    precision_scores.append(prec) 
+    f1_scores.append(f1) 
+    feature_importances.append(rf_classifier_optimized.feature_importances_) 
+    print(f"\nFold {fold+1} evaluation:") 
+    print(f"Accuracy: {acc}") 
+    print(f"Balanced Accuracy: {bal_acc}") 
+    print(f"Precision: {prec}") 
+    print(f"F1 Score: {f1}") 
+    print(classification_report(y_test, y_pred, zero_division=0)) 
 
-# Combine all fold predictions
-combined_predictions = pd.concat(all_predictions, axis=0) # Combine predictions
+#Create DataFrame
+combined_predictions = pd.concat(all_predictions, axis=0) 
+combined_predictions.to_csv(f'{output_directory}/Combined_Detailed_Predictions.csv', index=False) #Save CSV
+print("\nAverage metrics across all folds:") 
+print(f"Average Accuracy: {np.mean(accuracy_scores)}") 
+print(f"Average Balanced Accuracy: {np.mean(balanced_accuracy_scores)}") 
+print(f"Average Precision: {np.mean(precision_scores)}") 
+print(f"Average F1 Score: {np.mean(f1_scores)}") 
 
-# Save combined detailed predictions to a single CSV file
-combined_predictions.to_csv(f'{output_directory}/Combined_Detailed_Predictions.csv', index=False) # Save predictions to CSV
-
-# Print average metrics across all folds
-print("\nAverage metrics across all folds:") # Print average metrics header
-print(f"Average Accuracy: {np.mean(accuracy_scores)}") # Print average accuracy
-print(f"Average Balanced Accuracy: {np.mean(balanced_accuracy_scores)}") # Print average balanced accuracy
-print(f"Average Precision: {np.mean(precision_scores)}") # Print average precision
-print(f"Average F1 Score: {np.mean(f1_scores)}") # Print average F1 score
-
-# Handle varying feature importance array sizes
-max_length = max(len(f) for f in feature_importances) # Get max array length
-padded_importances = [np.pad(f, (0, max_length - len(f)), 'constant') for f in feature_importances] # Pad arrays
-
-# Average feature importances
-avg_feature_importances = np.mean(np.vstack(padded_importances), axis=0) # Compute average importances
-print("\nAverage Feature Importances:") # Print importances header
-print(avg_feature_importances) # Print importances
-
-# Identify the top contributing features
-tfidf_length = text_transformer.named_steps['tfidf'].vocabulary_.__len__() # Get TF-IDF length
-tfidf_feature_importance = avg_feature_importances[:tfidf_length] # Get TF-IDF importances
-other_feature_importance = avg_feature_importances[-len(numerical_features + categorical_features):] # Get other importances
-
-print(f"\nTF-IDF Feature Importance: {np.mean(tfidf_feature_importance)}") # Print TF-IDF importance
-print(f"Other Features Importance: {np.mean(other_feature_importance)}") # Print other importance
+max_length = max(len(f) for f in feature_importances) #Get Max Array Length
+padded_importances = [np.pad(f, (0, max_length - len(f)), 'constant') for f in feature_importances] 
+avg_feature_importances = np.mean(np.vstack(padded_importances), axis=0) #Average Feature Importances
+print("\nAverage Feature Importances:") 
+print(avg_feature_importances) 
+tfidf_length = text_transformer.named_steps['tfidf'].vocabulary_.__len__() #Get TF-IDF Length
+tfidf_feature_importance = avg_feature_importances[:tfidf_length] #Get TF-IDF Importances
+other_feature_importance = avg_feature_importances[-len(numerical_features + categorical_features):] 
+print(f"\nTF-IDF Feature Importance: {np.mean(tfidf_feature_importance)}") 
+print(f"Other Features Importance: {np.mean(other_feature_importance)}") 
