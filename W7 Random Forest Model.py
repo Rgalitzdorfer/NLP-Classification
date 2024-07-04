@@ -19,7 +19,7 @@ warnings.filterwarnings('ignore', category=UserWarning, message='The least popul
 
 #Directories
 file_path = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 6/All_Participants_Updated.csv' 
-output_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 6' 
+output_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 7' 
 os.makedirs(output_directory, exist_ok=True) 
 
 data = pd.read_csv(file_path) #Read CSV
@@ -117,7 +117,7 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
 
 #Create DataFrame
 combined_predictions = pd.concat(all_predictions, axis=0) 
-combined_predictions.to_csv(f'{output_directory}/Combined_Detailed_Predictions.csv', index=False) #Save CSV
+combined_predictions.to_csv(f'{output_directory}/Predictions_RF.csv', index=False) #Save CSV
 print("\nAverage metrics across all folds:") 
 print(f"Average Accuracy: {np.mean(accuracy_scores)}") 
 print(f"Average Balanced Accuracy: {np.mean(balanced_accuracy_scores)}") 
