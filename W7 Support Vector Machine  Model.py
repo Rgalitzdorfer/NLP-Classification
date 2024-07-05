@@ -144,5 +144,5 @@ correlation_matrix = numerical_data.corr()
 plt.figure(figsize=(12, 10))
 sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm')
 plt.title('Correlation Matrix')
-plt.savefig(f'{output_directory}/Correlation_Matrix_SVM.png')  # Save the plot
+plt.savefig(f'{output_directory}/Matrix_SVM.png')  # Save the plot
 plt.show()
