@@ -118,7 +118,7 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
 #Create DataFrame
 combined_predictions = pd.concat(all_predictions, axis=0) 
 combined_predictions.to_csv(f'{output_directory}/Predictions_RF.csv', index=False) #Save CSV
-print("\nAverage metrics across all folds:") 
+print("\nAverage Metrics Across All Folds:") 
 print(f"Average Accuracy: {np.mean(accuracy_scores)}") 
 print(f"Average Balanced Accuracy: {np.mean(balanced_accuracy_scores)}") 
 print(f"Average Precision: {np.mean(precision_scores)}") 
