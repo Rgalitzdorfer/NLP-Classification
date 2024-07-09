@@ -120,7 +120,7 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
     confusion_matrices.append(cm)
 
 combined_predictions = pd.concat(all_predictions, axis=0)  # Combine Results
-combined_predictions.to_csv(f'{output_directory}/Predictions_SVM.csv', index=False)  # Save to CSV
+combined_predictions.to_csv(f'{output_directory}/SVM_Predictions.csv', index=False)  # Save to CSV
 print("\nAverage Metrics Across All Folds:")
 print(f"Average Accuracy: {np.mean(accuracy_scores)}")
 print(f"Average Balanced Accuracy: {np.mean(balanced_accuracy_scores)}")

@@ -19,7 +19,7 @@ warnings.filterwarnings('ignore', category=UserWarning, message='The least popul
 
 #Directories
 file_path = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 6/All_Participants_Updated.csv' 
-output_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 7' 
+output_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Weeks 7-8' 
 os.makedirs(output_directory, exist_ok=True) 
 
 data = pd.read_csv(file_path) #Read CSV
