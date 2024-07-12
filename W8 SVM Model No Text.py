@@ -1,4 +1,4 @@
-# Import Libraries
+#Import Libraries
 import os
 import pandas as pd
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
@@ -15,23 +15,23 @@ from imblearn.pipeline import Pipeline as ImbPipeline
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-# Warnings
+#Warnings
 warnings.filterwarnings('ignore', category=UserWarning, message='The least populated class in y has only')
 
-# Directories
+#Directories
 file_path = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 6/All_Participants_Updated.csv'
 output_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Weeks 7-8'
 os.makedirs(output_directory, exist_ok=True)
 
-data = pd.read_csv(file_path)  # Read CSV
-data = data.dropna(subset=['State'])  # Drop Rows
+data = pd.read_csv(file_path) #Read CSV
+data = data.dropna(subset=['State']) #Drop Rows
 print(data.info())
 
-# Define Features
+#Define Features
 categorical_features = ['Rule_type', 'Rule_order']
 numerical_features = ['Updated_True_Time', 'Correct', 'First.Action', 'Attempt.Count', 'NormalizedFirstRT']
 
-# Machine Learning
+#Machine Learning
 preprocessor = ColumnTransformer(
     transformers=[
         ('num', StandardScaler(), numerical_features),
@@ -39,13 +39,11 @@ preprocessor = ColumnTransformer(
     ],
     remainder='drop'
 )
-
-X = data.drop(columns=['State'])  # Drop Target Column
-y = data['State']  # Define Target
-borderline_smote = BorderlineSMOTE(random_state=42, k_neighbors=2)  # Borderline SMOTE
-svm_classifier = SVC(kernel='linear', probability=True)  # Initialize SVM
-
-# Parameter Grid
+X = data.drop(columns=['State']) #Drop Target Column
+y = data['State'] #Define Target
+borderline_smote = BorderlineSMOTE(random_state=42, k_neighbors=2) #Borderline SMOTE
+svm_classifier = SVC(kernel='linear', probability=True) #Initialize SVM
+#Parameter Grid
 param_grid = {
     'C': [0.1, 1, 10],
     'gamma': ['scale']
@@ -59,13 +57,13 @@ pipeline = ImbPipeline(steps=[  # Add to Pipeline
     ('classifier', grid_search)
 ])
 
-pipeline.fit(X, y)  # Fit Pipeline
-best_params = pipeline.named_steps['classifier'].best_params_  # Extract Best Parameters
+pipeline.fit(X, y) #Fit Pipeline
+best_params = pipeline.named_steps['classifier'].best_params_ #Extract Best Parameters
 print(f"\nBest Parameters: {best_params}")
 
-svm_classifier_optimized = SVC(**best_params, kernel='linear', probability=True, random_state=42)  # Optimized SVM
-skf = StratifiedKFold(n_splits=6, shuffle=True, random_state=42)  # Cross Validation with 6 folds
-# Initialize
+svm_classifier_optimized = SVC(**best_params, kernel='linear', probability=True, random_state=42) #Optimized SVM
+skf = StratifiedKFold(n_splits=6, shuffle=True, random_state=42) #Cross Validation
+#Initialize
 all_predictions = []
 accuracy_scores = []
 balanced_accuracy_scores = []
@@ -73,6 +71,7 @@ precision_scores = []
 f1_scores = []
 confusion_matrices = []
 
+#Iterate Thorugh Each Fold
 for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
     print(f"\nProcessing fold {fold + 1}...")
     X_train, X_test = X.iloc[train_index].copy(), X.iloc[test_index].copy()
@@ -87,8 +86,7 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
         'Predicted': y_pred
     })
     all_predictions.append(fold_predictions_df)
-
-    # Evaluation Metrics
+    #Evaluation Metrics
     acc = accuracy_score(y_test, y_pred)
     bal_acc = balanced_accuracy_score(y_test, y_pred)
     prec = precision_score(y_test, y_pred, average='macro', zero_division=0)
@@ -97,42 +95,40 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
     balanced_accuracy_scores.append(bal_acc)
     precision_scores.append(prec)
     f1_scores.append(f1)
-    # Print Statements
+    #Print Results
     print(f"\nFold {fold+1} Evaluation:")
     print(f"Accuracy: {acc}")
     print(f"Balanced Accuracy: {bal_acc}")
     print(f"Precision: {prec}")
     print(f"F1 Score: {f1}")
     print(classification_report(y_test, y_pred, zero_division=0))
-
-    # Confusion Matrix
+    #Confusion Matrix
     cm = confusion_matrix(y_test, y_pred)
     confusion_matrices.append(cm)
 
-combined_predictions = pd.concat(all_predictions, axis=0)  # Combine Results
-combined_predictions.to_csv(f'{output_directory}/SVM_Predictions_without_text.csv', index=False)  # Save to CSV
+combined_predictions = pd.concat(all_predictions, axis=0) #Combine Results
+combined_predictions.to_csv(f'{output_directory}/Predictions_SVM_No_Text.csv', index=False) #Save to CSV
+#Results Across All Folds
 print("\nAverage Metrics Across All Folds:")
 print(f"Average Accuracy: {np.mean(accuracy_scores)}")
 print(f"Average Balanced Accuracy: {np.mean(balanced_accuracy_scores)}")
 print(f"Average Precision: {np.mean(precision_scores)}")
 print(f"Average F1 Score: {np.mean(f1_scores)}")
 
-# Average confusion matrices over all folds
+#Confusion Matrices
 max_classes = max(cm.shape[0] for cm in confusion_matrices)
-
 def pad_confusion_matrix(cm, max_classes):
     padded_cm = np.zeros((max_classes, max_classes))
     padded_cm[:cm.shape[0], :cm.shape[1]] = cm
     return padded_cm
-
 confusion_matrices = [pad_confusion_matrix(cm, max_classes) for cm in confusion_matrices]
 average_cm = np.mean(confusion_matrices, axis=0)
 
-# Plot Confusion Matrix
+#Plot Confusion Matrix
 plt.figure(figsize=(8, 6))
 sns.heatmap(average_cm, annot=True, fmt='.2f', cmap='Blues')
 plt.title('Confusion Matrix without Text Features')
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
-plt.savefig(f'{output_directory}/SVM_Confusion_Matrix_without_text.png')
+plt.savefig(f'{output_directory}/Confusion_Matrix_SVM_No_Text.png')
 plt.show()
