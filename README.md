@@ -2,7 +2,7 @@
 In conjunction with FACETLab (Future Adaptive Collaborative Educational Technologies), this project aims to predict learning outcomes from behavioral and log data received from participants performing various cognitive tests. Additionally, audio recordings from each participant were recorded to track what was being said during different parts of the examination. This 'textual' data was merged using an algorithm that most closely aligns the textual data with the timestamps from both the behavioral and log data. Then, TF-IDF Vectorizer was used to convert text into vectors based on the relevance of particular words. Lastly, this combined dataset used Multiclass Logistic Regression to predict and classify each participant's cognitive state at specific times throughout the experiment. 
 
 ## Largest Problems Faced:
-1. Building an algorithm to distribute and allocate textual data using mismatching timestamps from the log data as closely as possible.
+1. Building an algorithm to distribute and allocate textual data using mismatched timestamps from the log data as closely as possible.
 2. Selecting the best NLP approach for the textual data that would work best given the nature of the data and the scope of the presumptive classification models.
 3. Accounting for less frequently occurring cognitive states with Borderline SMOTE to reduce the model's bias in predicting the majority class.
 
