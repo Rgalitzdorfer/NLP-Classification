@@ -24,10 +24,15 @@ file_path = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 6/All_Participants_
 output_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Weeks 7-8'
 os.makedirs(output_directory, exist_ok=True)
 
-data = pd.read_csv(file_path) #Read CSV
-data = data.dropna(subset=['State']) #Drop Rows
+#Read CSV
+data = pd.read_csv(file_path)
+data = data.dropna(subset=['Label']) #Drop Rows Where 'Label' is NaN
 data['Text'] = data['Text'].fillna('') #Fill Missing Values
 print(data.info())
+
+#Identify Cognitive Labels
+unique_labels = data['Label'].unique()
+print(f"Unique 'Label' values and their labels: {unique_labels}")
 
 #Define Features
 text_feature_column = 'Text'
@@ -49,29 +54,40 @@ preprocessor = ColumnTransformer(
     ],
     remainder='drop'
 )
-X = data.drop(columns=['State']) #Drop Target Column
-y = data['State'] #Define Target
-borderline_smote = BorderlineSMOTE(random_state=42, k_neighbors=2) #Borderline SMOTE
-logistic_classifier = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000) #Initialize Logistic Regression
+
+X = data.drop(columns=['Label']) #Drop Target Column
+y = data['Label'].map({label: idx for idx, label in enumerate(unique_labels)}) #Map Labels to Numerical Values
+
+#Borderline SMOTE for Class Imbalance
+borderline_smote = BorderlineSMOTE(random_state=42, k_neighbors=2)
+logistic_classifier = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000) #Logistic Classifier
 
 #Parameter Grid
 param_grid = {
     'C': [0.1, 1, 10]  
 }
-cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)  #Cross-Validation Strategy With 10 folds
-grid_search = GridSearchCV(estimator=logistic_classifier, param_grid=param_grid, cv=cv, n_jobs=-1, verbose=10)  
-pipeline = ImbPipeline(steps=[  #Add to Pipeline
+
+#Cross-Validation Strategy With 10 folds
+cv = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+grid_search = GridSearchCV(estimator=logistic_classifier, param_grid=param_grid, cv=cv, n_jobs=-1, verbose=10)
+
+#Add to Pipeline
+pipeline = ImbPipeline(steps=[
     ('preprocessor', preprocessor),
     ('borderline_smote', borderline_smote),
     ('logistic_classifier', grid_search)
 ])
 
 pipeline.fit(X, y) #Fit Pipeline
-best_params = pipeline.named_steps['logistic_classifier'].best_params_  #Extract Best Parameters
+best_params = pipeline.named_steps['logistic_classifier'].best_params_ #Extract Best Parameters
 print(f"\nBest Parameters: {best_params}")
 
-logistic_classifier_optimized = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000, C=best_params['C']) #Optimized Logistic Regression
-skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)  #Cross Validation with 10 folds
+#Optimized Logistic Regression
+logistic_classifier_optimized = LogisticRegression(multi_class='multinomial', solver='lbfgs', max_iter=1000, C=best_params['C'])
+
+#Cross Validation with 10 folds
+skf = StratifiedKFold(n_splits=10, shuffle=True, random_state=42)
+
 #Initialize
 all_predictions = []
 accuracy_scores = []
@@ -106,7 +122,7 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
     precision_scores.append(prec)
     f1_scores.append(f1)
     #Print Results
-    print(f"\nFold {fold+1} Evaluation:")
+    print(f"\nFold {fold + 1} Evaluation:")
     print(f"Accuracy: {acc}")
     print(f"Balanced Accuracy: {bal_acc}")
     print(f"Precision: {prec}")
@@ -117,15 +133,16 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
     confusion_matrices.append(cm)
 
 #Combine Predictions Into DataFrame & Get Results Across All Folds
-combined_predictions = pd.concat(all_predictions, axis=0)  
-combined_predictions.to_csv(f'{output_directory}/Predictions_MLR.csv', index=False)  
+combined_predictions = pd.concat(all_predictions, axis=0)
+combined_predictions.to_csv(f'{output_directory}/Predictions_MLR.csv', index=False)
 print("\nAverage Metrics Across All Folds:")
 print(f"Average Accuracy: {np.mean(accuracy_scores)}")
 print(f"Average Balanced Accuracy: {np.mean(balanced_accuracy_scores)}")
 print(f"Average Precision: {np.mean(precision_scores)}")
 print(f"Average F1 Score: {np.mean(f1_scores)}")
 
-max_classes = max(cm.shape[0] for cm in confusion_matrices) #Average Confusion Matrix Across All Folds
+#Average Confusion Matrix Across All Folds
+max_classes = max(cm.shape[0] for cm in confusion_matrices)
 def pad_confusion_matrix(cm, max_classes):
     padded_cm = np.zeros((max_classes, max_classes))
     padded_cm[:cm.shape[0], :cm.shape[1]] = cm
@@ -133,9 +150,9 @@ def pad_confusion_matrix(cm, max_classes):
 confusion_matrices = [pad_confusion_matrix(cm, max_classes) for cm in confusion_matrices]
 average_cm = np.mean(confusion_matrices, axis=0)
 
-#Plot 
+#Plot
 plt.figure(figsize=(8, 6))
-sns.heatmap(average_cm, annot=True, fmt='.2f', cmap='Blues')
+sns.heatmap(average_cm, annot=True, fmt='.2f', cmap='Blues', xticklabels=unique_labels, yticklabels=unique_labels)
 plt.title('Confusion Matrix')
 plt.xlabel('Predicted')
 plt.ylabel('Actual')

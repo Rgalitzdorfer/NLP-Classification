@@ -23,9 +23,14 @@ file_path = '/Users/ryangalitzdorfer/Downloads/FACETLab/Week 6/All_Participants_
 output_directory = '/Users/ryangalitzdorfer/Downloads/FACETLab/Weeks 7-8'
 os.makedirs(output_directory, exist_ok=True)
 
-data = pd.read_csv(file_path) #Read CSV
-data = data.dropna(subset=['State']) #Drop Rows
+#Read CSV
+data = pd.read_csv(file_path)
+data = data.dropna(subset=['Label']) #Drop Rows where 'Label' is NaN
 print(data.info())
+
+#Identify Cognitive Labels
+unique_labels = data['Label'].unique()
+print(f"Unique 'Label' values and their labels: {unique_labels}")
 
 #Define Features
 categorical_features = ['Rule_type', 'Rule_order']
@@ -39,19 +44,26 @@ preprocessor = ColumnTransformer(
     ],
     remainder='drop'
 )
-X = data.drop(columns=['State']) #Drop Target Column
-y = data['State'] #Define Target
-borderline_smote = BorderlineSMOTE(random_state=42, k_neighbors=2) #Borderline SMOTE
-svm_classifier = SVC(kernel='linear', probability=True) #Initialize SVM
+
+X = data.drop(columns=['Label', 'Text']) #Drop Target Column & Text Column
+y = data['Label'].map({label: idx for idx, label in enumerate(unique_labels)}) #Map Labels to Numerical Values
+
+#Borderline SMOTE
+borderline_smote = BorderlineSMOTE(random_state=42, k_neighbors=2)
+svm_classifier = SVC(kernel='linear', probability=True) #SVM
+
 #Parameter Grid
 param_grid = {
     'C': [0.1, 1, 10],
     'gamma': ['scale']
 }
 
-cv = StratifiedKFold(n_splits=6, shuffle=True, random_state=42)  # Cross-Validation Strategy with 6 folds
-grid_search = GridSearchCV(estimator=svm_classifier, param_grid=param_grid, cv=cv, n_jobs=-1, verbose=10)  # Increase verbosity
-pipeline = ImbPipeline(steps=[  # Add to Pipeline
+#Cross-Validation Strategy With 6 folds
+cv = StratifiedKFold(n_splits=6, shuffle=True, random_state=42)
+grid_search = GridSearchCV(estimator=svm_classifier, param_grid=param_grid, cv=cv, n_jobs=-1, verbose=10)
+
+#Add to Pipeline
+pipeline = ImbPipeline(steps=[
     ('preprocessor', preprocessor),
     ('borderline_smote', borderline_smote),
     ('classifier', grid_search)
@@ -61,8 +73,10 @@ pipeline.fit(X, y) #Fit Pipeline
 best_params = pipeline.named_steps['classifier'].best_params_ #Extract Best Parameters
 print(f"\nBest Parameters: {best_params}")
 
-svm_classifier_optimized = SVC(**best_params, kernel='linear', probability=True, random_state=42) #Optimized SVM
-skf = StratifiedKFold(n_splits=6, shuffle=True, random_state=42) #Cross Validation
+#Optimized SVM
+svm_classifier_optimized = SVC(**best_params, kernel='linear', probability=True, random_state=42)
+skf = StratifiedKFold(n_splits=6, shuffle=True, random_state=42) #Cross Validation With 6 folds
+
 #Initialize
 all_predictions = []
 accuracy_scores = []
@@ -71,7 +85,7 @@ precision_scores = []
 f1_scores = []
 confusion_matrices = []
 
-#Iterate Thorugh Each Fold
+#Iterate Through Each Fold
 for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
     print(f"\nProcessing fold {fold + 1}...")
     X_train, X_test = X.iloc[train_index].copy(), X.iloc[test_index].copy()
@@ -86,6 +100,7 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
         'Predicted': y_pred
     })
     all_predictions.append(fold_predictions_df)
+
     #Evaluation Metrics
     acc = accuracy_score(y_test, y_pred)
     bal_acc = balanced_accuracy_score(y_test, y_pred)
@@ -95,8 +110,9 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
     balanced_accuracy_scores.append(bal_acc)
     precision_scores.append(prec)
     f1_scores.append(f1)
+
     #Print Results
-    print(f"\nFold {fold+1} Evaluation:")
+    print(f"\nFold {fold + 1} Evaluation:")
     print(f"Accuracy: {acc}")
     print(f"Balanced Accuracy: {bal_acc}")
     print(f"Precision: {prec}")
@@ -106,16 +122,16 @@ for fold, (train_index, test_index) in enumerate(skf.split(X, y)):
     cm = confusion_matrix(y_test, y_pred)
     confusion_matrices.append(cm)
 
-combined_predictions = pd.concat(all_predictions, axis=0) #Combine Results
-combined_predictions.to_csv(f'{output_directory}/Predictions_SVM_No_Text.csv', index=False) #Save to CSV
-#Results Across All Folds
+#Combine Predictions Into DataFrame & Get Results Across All Folds
+combined_predictions = pd.concat(all_predictions, axis=0)
+combined_predictions.to_csv(f'{output_directory}/Predictions_SVM_No_Text.csv', index=False)
 print("\nAverage Metrics Across All Folds:")
 print(f"Average Accuracy: {np.mean(accuracy_scores)}")
 print(f"Average Balanced Accuracy: {np.mean(balanced_accuracy_scores)}")
 print(f"Average Precision: {np.mean(precision_scores)}")
 print(f"Average F1 Score: {np.mean(f1_scores)}")
 
-#Confusion Matrices
+#Average Confusion Matrix Across All Folds
 max_classes = max(cm.shape[0] for cm in confusion_matrices)
 def pad_confusion_matrix(cm, max_classes):
     padded_cm = np.zeros((max_classes, max_classes))
@@ -124,9 +140,9 @@ def pad_confusion_matrix(cm, max_classes):
 confusion_matrices = [pad_confusion_matrix(cm, max_classes) for cm in confusion_matrices]
 average_cm = np.mean(confusion_matrices, axis=0)
 
-#Plot Confusion Matrix
+#Plot
 plt.figure(figsize=(8, 6))
-sns.heatmap(average_cm, annot=True, fmt='.2f', cmap='Blues')
+sns.heatmap(average_cm, annot=True, fmt='.2f', cmap='Blues', xticklabels=unique_labels, yticklabels=unique_labels)
 plt.title('Confusion Matrix without Text Features')
 plt.xlabel('Predicted')
 plt.ylabel('Actual')
