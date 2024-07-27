@@ -11,6 +11,17 @@ The Multiclass Logistic Regression model achieved a 95% accuracy score, 79% bala
 
 
 # Code Breakdown
+## Libraries Used
+### Pandas (DataFrame Manipulation)
+### Numpy (Arrays)
+### Matplotlib (Data Visualization)
+### Seaborn (Data Visualization)
+### Datetime (Matching Timestamps)
+### TfidfVectorizer (Natural Language Processing)
+### Borderline SMOTE (Class Imbalance)
+### StratifiedKFold (Model Evaluation)
+### Skicit-Learn (Machine Learning)
+
 ## Week 1: Exploratory Data Analysis
 EDA was performed on various columns from each participant's log data to get an understanding of the data's distribution, the importance of different features, and the relationship between cognitive state and other factors. This was later used to determine which features would be most useful for the classification model.
 
